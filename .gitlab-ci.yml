@@ -1,0 +1,83 @@
+.deploy_by_ansible:
+  script:
+    - sudo apt install -y ansible sshpass
+    - export ANSIBLE_HOST_KEY_CHECKING=False
+    - >
+      ansible-playbook
+      -i ansible/inventories/$environment/inventory.yml
+      -e "
+      ansible_user=$cicd_user
+      ansible_password=$cicd_password
+      ansible_become_password=$cicd_password
+      "
+      ansible/playbook.yml 
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+stages:
+  - approve
+  - deploy
+
+approve:
+  stage: approve
+  when: manual
+  script: 'echo approved'
+
+uninstall nginx: 
+  stage: deploy
+  when: manual
+  script: 'sudo apt-get autoremove -y nginx'
+  needs: 
+    - job: approve
+
+install nginx by shell:
+  stage: deploy
+  when: manual
+  script: 
+    - sudo apt-get install -y nginx
+    - sudo cp -f nginx.conf /etc/nginx/nginx.conf
+    - sudo systemctl restart nginx
+    - if(( $(sudo systemctl status nginx | grep 'active (running)' | wc -l)==0 )); then exit 1; fi
+  needs: 
+    - job: approve
+
+install nginx by base64:
+  stage: deploy
+  when: manual
+  script: 
+    - sudo apt-get install -y nginx
+    - echo $NGINX_CONF | base64 -d | sudo tee /etc/nginx/nginx.conf
+    - sudo systemctl restart nginx
+    - if(( $(sudo systemctl status nginx | grep 'active (running)' | wc -l)==0 )); then exit 1; fi
+  needs: 
+    - job: approve
+
+install nginx by python:
+  stage: deploy
+  when: manual
+  script: 
+    - sudo apt install -y python3 python3-apt python3-pystemd
+    - sudo python3 nginx_deploy.py
+  needs: 
+    - job: approve
+
+install nginx by ansible for port 81:
+  stage: deploy
+  when: manual
+  variables:
+    environment: port81
+  extends: 
+    - .deploy_by_ansible
+  needs: 
+    - job: approve
+
+install nginx by ansible for port 82:
+  stage: deploy
+  when: manual
+  variables:
+    environment: port82
+  extends: 
+    - .deploy_by_ansible
+  needs: 
+    - job: approve

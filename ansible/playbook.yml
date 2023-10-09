@@ -1,0 +1,6 @@
+---
+- name: Nginx role
+  hosts: nginx
+  become: true
+  roles:
+    - role: nginx
